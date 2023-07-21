@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:gallery_saver/gallery_saver.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,18 +7,17 @@ import 'package:local_image_provider/device_image.dart';
 import 'package:local_image_provider/local_image.dart';
 import 'package:local_image_provider/local_image_provider.dart' as lip;
 
-void main() {
-  runApp(const MyApp());
-}
+void main() => runApp(MyApp());
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
-
   @override
   _MyAppState createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
+  File? _image;
+  final picker = ImagePicker();
+  List<Image> picImages = [];
 
   @override
   void initState() {
@@ -39,6 +40,24 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  Future getPickImage() async {
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    setState(() {
+      if (pickedFile != null) {
+        _image = File(pickedFile.path);
+        setState(() {
+          print("이미지 추가됨");
+          picImages = [...picImages, Image.file(_image!)];
+        });
+
+        print("선택된 이미지 경로 : ${_image!.path}");
+      } else {
+        print('No image selected.');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -48,13 +67,17 @@ class _MyAppState extends State<MyApp> {
           builder: (context, snapshot) {
             return Column(
               children: [
-                const Expanded(
+                Expanded(
                   child: Center(
                     child: Text(
                       "사진 저장하기",
                       style: TextStyle(fontSize: 50.0),
                     ),
                   ),
+                ),
+                Text(
+                  "로컬에 저장된 최근 사진들",
+                  style: TextStyle(fontSize: 20),
                 ),
                 Expanded(
                   child: GridView.count(
@@ -66,6 +89,17 @@ class _MyAppState extends State<MyApp> {
                         : [],
                   ),
                 ),
+                Text(
+                  "선택한 사진들",
+                  style: TextStyle(fontSize: 20),
+                ),
+                SizedBox(
+                  height: 120,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: picImages,
+                  ),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -73,7 +107,14 @@ class _MyAppState extends State<MyApp> {
                       onPressed: () {
                         _takePhoto();
                       },
-                      icon: const Icon(Icons.camera_alt_outlined),
+                      icon: Icon(Icons.camera_alt_outlined),
+                      iconSize: 50.0,
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        getPickImage();
+                      },
+                      icon: Icon(Icons.picture_in_picture),
                       iconSize: 50.0,
                     ),
                   ],
@@ -98,3 +139,4 @@ class _MyAppState extends State<MyApp> {
     });
   }
 }
+
