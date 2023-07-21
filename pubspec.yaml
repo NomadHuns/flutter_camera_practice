@@ -33,6 +33,7 @@ dependencies:
   cupertino_icons: ^1.0.2
   image_picker: ^1.0.1
   gallery_saver: ^2.1.0
+  local_image_provider: ^4.3.0
 
 dev_dependencies:
   flutter_test:
