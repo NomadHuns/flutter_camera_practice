@@ -1,142 +1,107 @@
+import 'dart:async';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:gallery_saver/gallery_saver.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:local_image_provider/device_image.dart';
-import 'package:local_image_provider/local_image.dart';
-import 'package:local_image_provider/local_image_provider.dart' as lip;
+import 'package:camera/camera.dart';
+import 'package:path_provider/path_provider.dart';
 
-void main() => runApp(MyApp());
 
-class MyApp extends StatefulWidget {
-  @override
-  _MyAppState createState() => _MyAppState();
+main() {
+  runApp(CameraApp());
 }
 
-class _MyAppState extends State<MyApp> {
-  File? _image;
-  final picker = ImagePicker();
-  List<Image> picImages = [];
+class CameraApp extends StatefulWidget {
+  @override
+  _CameraAppState createState() => _CameraAppState();
+}
+
+class _CameraAppState extends State<CameraApp> {
+  Future<CameraController> useCamera() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    List<CameraDescription> cameras = await availableCameras();
+    CameraController controller =
+    CameraController(cameras[0], ResolutionPreset.max);
+    await controller.initialize();
+    return controller;
+  }
 
   @override
   void initState() {
     super.initState();
   }
 
-  Future<List<LocalImage>> getLocalImages() async {
-    lip.LocalImageProvider imageProvider = lip.LocalImageProvider();
-    bool hasPermission = await imageProvider.initialize();
-    if (hasPermission) {
-      // 최근 이미지 30개 가져오기
-      List<LocalImage> images = await imageProvider.findLatest(30);
-      if (images.isNotEmpty) {
-        return images;
-      } else {
-        throw "이미지를 찾을 수 없습니다.";
-      }
-    } else {
-      throw "이미지에 접근할 권한이 없습니다.";
-    }
-  }
-
-  Future getPickImage() async {
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-    setState(() {
-      if (pickedFile != null) {
-        _image = File(pickedFile.path);
-        setState(() {
-          print("이미지 추가됨");
-          picImages = [...picImages, Image.file(_image!)];
-        });
-
-        print("선택된 이미지 경로 : ${_image!.path}");
-      } else {
-        print('No image selected.');
-      }
-    });
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        body: FutureBuilder<List<LocalImage>>(
-          future: getLocalImages(),
+        body: FutureBuilder<CameraController>(
+          future: useCamera(),
           builder: (context, snapshot) {
-            return Column(
-              children: [
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      "사진 저장하기",
-                      style: TextStyle(fontSize: 50.0),
-                    ),
-                  ),
-                ),
-                Text(
-                  "로컬에 저장된 최근 사진들",
-                  style: TextStyle(fontSize: 20),
-                ),
-                Expanded(
-                  child: GridView.count(
-                    crossAxisCount: 3,
-                    children: snapshot.hasData
-                        ? snapshot.data!
-                        .map((e) => Image(image: DeviceImage(e)))
-                        .toList()
-                        : [],
-                  ),
-                ),
-                Text(
-                  "선택한 사진들",
-                  style: TextStyle(fontSize: 20),
-                ),
-                SizedBox(
-                  height: 120,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: picImages,
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+            if (!snapshot.hasData) {
+              print("나실행중");
+              return CircularProgressIndicator();
+            } else {
+              print("나 이제 실행됨");
+              return SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    IconButton(
-                      onPressed: () {
-                        _takePhoto();
-                      },
-                      icon: Icon(Icons.camera_alt_outlined),
-                      iconSize: 50.0,
+                    Text(
+                      "카메라 프리뷰",
+                      style: TextStyle(fontSize: 30),
                     ),
-                    IconButton(
-                      onPressed: () {
-                        getPickImage();
-                      },
-                      icon: Icon(Icons.picture_in_picture),
-                      iconSize: 50.0,
+                    Expanded(child: CameraPreview(snapshot.data!)),
+                    Text(
+                      "저장된 사진 불러오기",
+                      style: TextStyle(fontSize: 30),
                     ),
+                    FutureBuilder<File>(
+                      future: getFileImage(),
+                      builder: (context, snapshot) {
+                        return Expanded(
+                            child: Image.file(
+                              snapshot.data!,
+                              fit: BoxFit.cover,
+                            ));
+                      },
+                    ),
+                    ElevatedButton(
+                        onPressed: () async {
+                          final directory =
+                          await getApplicationDocumentsDirectory();
+
+                          XFile xFile = await snapshot.data!.takePicture();
+                          xFile.saveTo("${directory.path}/1.jpg");
+                          print("사진 찍힘 ${directory.path}/1.jpg");
+                        },
+                        child: Text("촬영")),
                   ],
                 ),
-              ],
-            );
+              );
+            }
           },
         ),
       ),
     );
   }
 
-  void _takePhoto() async {
-    ImagePicker().pickImage(source: ImageSource.camera).then((value) {
-      if (value != null && value.path != null) {
-        print("저장경로 : ${value.path}");
-
-        GallerySaver.saveImage(value.path).then((value) {
-          print("사진이 저장되었습니다");
-        });
-      }
-    });
+  // CAP1089117287322915032.jpg
+  Future<File> getFileImage() async {
+    final _fileName = "1.jpg";
+    final directory = await getApplicationDocumentsDirectory();
+    String _path = directory.path;
+    print("파일 경로 : $_path");
+    try {
+      final file = File('$_path/$_fileName');
+      return file;
+    } catch (e) {
+      throw "파일 읽기 실패";
+    }
   }
 }
+
 
