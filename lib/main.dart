@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 main() {
   runApp(CameraApp());
@@ -15,6 +16,8 @@ class CameraApp extends StatefulWidget {
 }
 
 class _CameraAppState extends State<CameraApp> {
+  List<String> _fileNameList = [];
+
   Future<CameraController> useCamera() async {
     WidgetsFlutterBinding.ensureInitialized();
     List<CameraDescription> cameras = await availableCameras();
@@ -47,36 +50,41 @@ class _CameraAppState extends State<CameraApp> {
             } else {
               print("나 이제 실행됨");
               return SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: ListView(
                   children: [
                     Text(
                       "카메라 프리뷰",
                       style: TextStyle(fontSize: 30),
                     ),
-                    Expanded(child: CameraPreview(snapshot.data!)),
+                    SizedBox(
+                      height: 300,
+                      child: CameraPreview(snapshot.data!),
+                    ),
                     Text(
-                      "저장된 사진 불러오기",
+                      "최근 사진 불러오기",
                       style: TextStyle(fontSize: 30),
                     ),
-                    FutureBuilder<File>(
-                      future: getFileImage(),
+                    FutureBuilder<List<File>>(
+                      future: getFileImages(),
                       builder: (context, snapshot) {
-                        return Expanded(
-                            child: Image.file(
-                              snapshot.data!,
-                              fit: BoxFit.cover,
+                        return SizedBox(
+                            height: 300,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: snapshot.hasData
+                                  ? snapshot.data!
+                                  .map((e) => Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Image.file(e),
+                              ))
+                                  .toList()
+                                  : [],
                             ));
                       },
                     ),
                     ElevatedButton(
-                        onPressed: () async {
-                          final directory =
-                          await getApplicationDocumentsDirectory();
-
-                          XFile xFile = await snapshot.data!.takePicture();
-                          xFile.saveTo("${directory.path}/1.jpg");
-                          print("사진 찍힘 ${directory.path}/1.jpg");
+                        onPressed: () {
+                          takePhoto(snapshot.data!);
                         },
                         child: Text("촬영")),
                   ],
@@ -89,19 +97,42 @@ class _CameraAppState extends State<CameraApp> {
     );
   }
 
-  // CAP1089117287322915032.jpg
-  Future<File> getFileImage() async {
-    final _fileName = "1.jpg";
+  Future<void> takePhoto(CameraController controller) async {
+    var uuid = Uuid();
+    final _fileName = "${uuid.v1()}.jpg";
+
     final directory = await getApplicationDocumentsDirectory();
-    String _path = directory.path;
-    print("파일 경로 : $_path");
+
+    XFile xFile = await controller.takePicture();
+    await xFile.saveTo("${directory.path}/$_fileName");
+    print("사진 찍힘 ${directory.path}/$_fileName");
+
+    await _fileNameMemSave("${directory.path}/$_fileName");
+  }
+
+  // CAP1089117287322915032.jpg
+  Future<List<File>> getFileImages() async {
+    List<String> imageFileList = await _fileNameMemSelect();
+    List<File> files = imageFileList.map((e) => File("$e")).toList();
     try {
-      final file = File('$_path/$_fileName');
-      return file;
+      return files;
     } catch (e) {
       throw "파일 읽기 실패";
     }
   }
+
+  _fileNameMemSave(String value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    setState(() {
+      _fileNameList = [..._fileNameList, "$value"];
+      print(_fileNameList.toString());
+    });
+    await prefs.setStringList('fileNameList', _fileNameList);
+  }
+
+  Future<List<String>> _fileNameMemSelect() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList("fileNameList")!;
+  }
 }
-
-
